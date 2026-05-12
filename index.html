@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arcade Beat: Neon Rhythm - Select Mission</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --neon-pink: #ff00ff;
+            --neon-cyan: #00ffff;
+            --neon-purple: #bc13fe;
+            --bg-dark: #020205;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: white;
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            margin: 0;
+            user-select: none;
+        }
+
+        .orbitron { font-family: 'Orbitron', sans-serif; }
+
+        .neon-text-pink { text-shadow: 0 0 10px var(--neon-pink), 0 0 20px var(--neon-pink); }
+        .neon-text-cyan { text-shadow: 0 0 10px var(--neon-cyan), 0 0 20px var(--neon-cyan); }
+        
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(to bottom, #05050a 0%, #020205 100%);
+        }
+
+        canvas {
+            display: block;
+            border-left: 1px solid rgba(255, 255, 255, 0.1);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            background: linear-gradient(to bottom, rgba(255, 255, 255, 0.01), rgba(255, 255, 255, 0.03));
+        }
+
+        .key-hint {
+            position: absolute;
+            bottom: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 5;
+        }
+
+        .key-cap {
+            width: 60px;
+            height: 70px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(145deg, #1a1a2e, #0f0f1a);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            font-weight: 900;
+            font-size: 1rem;
+            transition: all 0.05s;
+            color: rgba(255, 255, 255, 0.4);
+            box-shadow: 0 4px 0 rgba(0,0,0,0.5);
+        }
+
+        .key-cap.active {
+            background: white;
+            color: black;
+            transform: translateY(4px);
+            box-shadow: 0 0 30px var(--active-color, var(--neon-cyan));
+            border-color: var(--active-color, var(--neon-cyan));
+        }
+
+        .key-cap span { font-size: 0.7rem; opacity: 0.6; margin-top: 4px; }
+
+        /* Screens & Overlays */
+        .overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.92);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(15px);
+        }
+
+        .song-card {
+            width: 280px;
+            padding: 24px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .song-card:hover {
+            background: rgba(255, 255, 255, 0.08);
+            transform: translateY(-10px);
+            border-color: var(--neon-cyan);
+        }
+
+        .song-card.selected {
+            border: 2px solid var(--neon-pink);
+            background: rgba(255, 0, 255, 0.05);
+            box-shadow: 0 0 30px rgba(255, 0, 255, 0.2);
+        }
+
+        .btn-start {
+            margin-top: 40px;
+            padding: 18px 60px;
+            font-size: 1.5rem;
+            background: linear-gradient(90deg, var(--neon-pink), var(--neon-purple));
+            color: white;
+            border-radius: 50px;
+            font-weight: 900;
+            box-shadow: 0 0 25px var(--neon-pink);
+            transition: all 0.3s;
+            letter-spacing: 2px;
+        }
+
+        .btn-start:hover {
+            transform: scale(1.1) rotate(-1deg);
+            box-shadow: 0 0 50px var(--neon-pink);
+        }
+
+        #combo-container {
+            position: absolute;
+            top: 30%;
+            width: 100%;
+            text-align: center;
+            pointer-events: none;
+        }
+
+        #progress-bar-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 6px;
+            background: rgba(255,255,255,0.05);
+        }
+
+        #progress-bar {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, var(--neon-cyan), var(--neon-pink));
+            box-shadow: 0 0 15px var(--neon-cyan);
+            transition: width 0.1s linear;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <!-- Selection Screen -->
+    <div id="menu-overlay" class="overlay">
+        <h1 class="orbitron text-6xl mb-4 neon-text-pink font-black italic">ARCADE BEAT</h1>
+        <p class="orbitron text-cyan-400 mb-12 tracking-[0.5em] text-sm">NEON RHYTHM SYSTEM</p>
+        
+        <div class="flex flex-wrap justify-center gap-6">
+            <div class="song-card" onclick="selectSong(0)">
+                <div class="text-xs text-gray-500 orbitron mb-1">LEVEL 03</div>
+                <div class="text-2xl font-bold orbitron">CYBER PULSE</div>
+                <div class="text-xs text-cyan-400 mt-4 opacity-70">BPM 128 | SYNTHWAVE</div>
+            </div>
+            <div class="song-card" onclick="selectSong(1)">
+                <div class="text-xs text-gray-500 orbitron mb-1">LEVEL 07</div>
+                <div class="text-2xl font-bold orbitron">TECHNO RAGE</div>
+                <div class="text-xs text-pink-500 mt-4 opacity-70">BPM 155 | HARD TECHNO</div>
+            </div>
+            <div class="song-card" onclick="selectSong(2)">
+                <div class="text-xs text-gray-500 orbitron mb-1">LEVEL 05</div>
+                <div class="text-2xl font-bold orbitron">GLITCH CITY</div>
+                <div class="text-xs text-purple-400 mt-4 opacity-70">BPM 140 | ELECTRO</div>
+            </div>
+        </div>
+        <button id="start-btn" class="btn-start orbitron hidden">START MISSION</button>
+    </div>
+
+    <!-- Result Screen -->
+    <div id="result-overlay" class="overlay hidden">
+        <h2 class="orbitron text-5xl mb-2 text-cyan-400 font-black">MISSION CLEAR</h2>
+        <div id="final-score" class="orbitron text-8xl font-black mb-10 neon-text-cyan">000000</div>
+        <div class="grid grid-cols-2 gap-12 mb-12 text-2xl orbitron">
+            <div class="text-center"><div class="text-gray-500 text-sm">MAX COMBO</div><div id="max-combo-val" class="text-pink-500">0</div></div>
+            <div class="text-center"><div class="text-gray-500 text-sm">ACCURACY</div><div id="accuracy-val">0%</div></div>
+        </div>
+        <button onclick="location.reload()" class="btn-start orbitron">RETURN TO MENU</button>
+    </div>
+
+    <div id="progress-bar-container">
+        <div id="progress-bar"></div>
+    </div>
+
+    <div class="absolute top-12 left-12 text-left z-10">
+        <div class="orbitron text-gray-500 text-xs tracking-widest mb-1">SCORE ARCHIVE</div>
+        <div id="score-val" class="orbitron text-5xl font-bold neon-text-cyan">000000</div>
+    </div>
+
+    <div id="combo-container">
+        <div id="combo-count" class="orbitron text-9xl font-black italic text-white opacity-0 transition-all duration-75">0</div>
+        <div id="judgement-text" class="orbitron text-3xl font-bold mt-4 tracking-[0.3em]"></div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div class="key-hint" id="key-indicators">
+        <div class="key-cap" data-key="s" style="--active-color: #ff00ff">S<span>PINK</span></div>
+        <div class="key-cap" data-key="d" style="--active-color: #ff00ff">D<span>PINK</span></div>
+        <div class="key-cap" data-key="f" style="--active-color: #ff00ff">F<span>PINK</span></div>
+        <div class="key-cap" style="width: 160px; --active-color: #00ffff" data-key=" ">SPACE<span>CORE</span></div>
+        <div class="key-cap" data-key="j" style="--active-color: #bc13fe">J<span>PURP</span></div>
+        <div class="key-cap" data-key="k" style="--active-color: #bc13fe">K<span>PURP</span></div>
+        <div class="key-cap" data-key="l" style="--active-color: #bc13fe">L<span>PURP</span></div>
+    </div>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const scoreEl = document.getElementById('score-val');
+const comboEl = document.getElementById('combo-count');
+const judgeEl = document.getElementById('judgement-text');
+const progressBar = document.getElementById('progress-bar');
+
+const LANE_COUNT = 7;
+const KEY_MAP = ['s', 'd', 'f', ' ', 'j', 'k', 'l'];
+const LANE_COLORS = ['#ff00ff', '#ff00ff', '#ff00ff', '#00ffff', '#bc13fe', '#bc13fe', '#bc13fe'];
+
+const SONGS = [
+    { name: "CYBER PULSE", bpm: 128, length: 60, speed: 7, difficulty: 3 },
+    { name: "TECHNO RAGE", bpm: 155, length: 45, speed: 10, difficulty: 7 },
+    { name: "GLITCH CITY", bpm: 140, length: 55, speed: 8, difficulty: 5 }
+];
+
+let currentSongIdx = -1;
+let gameState = 'MENU';
+let score = 0;
+let combo = 0;
+let maxCombo = 0;
+let notes = [];
+let particles = [];
+let activeLanes = new Array(LANE_COUNT).fill(false);
+let lastTime = 0;
+let spawnTimer = 0;
+let gameStartTime = 0;
+let width, height, laneWidth;
+
+// Audio Setup
+const synth = new Tone.PolySynth(Tone.Synth, { oscillator: { type: "sawtooth" }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 1 } }).toDestination();
+const drum = new Tone.MembraneSynth({ volume: -5 }).toDestination();
+const hitNoise = new Tone.NoiseSynth({ volume: -10 }).toDestination();
+
+function resize() {
+    width = Math.min(window.innerWidth * 0.95, 800);
+    height = window.innerHeight;
+    canvas.width = width;
+    canvas.height = height;
+    laneWidth = width / LANE_COUNT;
+}
+
+window.addEventListener('resize', resize);
+resize();
+
+class Note {
+    constructor(lane) {
+        this.lane = lane;
+        this.y = -50;
+        this.w = laneWidth - 10;
+        this.h = 30;
+        this.color = LANE_COLORS[lane];
+        this.hit = false;
+        this.missed = false;
+    }
+
+    update(dt, speed) {
+        this.y += speed * (dt / 16);
+        if (this.y > height - 120 && !this.hit && !this.missed) {
+            if (this.y > height - 50) {
+                this.missed = true;
+                handleMiss();
+            }
+        }
+    }
+
+    draw() {
+        if (this.hit) return;
+        const x = this.lane * laneWidth + 5;
+        
+        ctx.save();
+        // Neon Glow
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = this.color;
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.roundRect(x, this.y, this.w, this.h, 6);
+        ctx.fill();
+        
+        // Inner white shine
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.fillRect(x + 10, this.y + 6, this.w - 20, 4);
+        ctx.restore();
+    }
+}
+
+class Particle {
+    constructor(x, y, color) {
+        this.x = x;
+        this.y = y;
+        this.color = color;
+        this.vx = (Math.random() - 0.5) * 15;
+        this.vy = (Math.random() - 0.8) * 15;
+        this.life = 1.0;
+        this.size = Math.random() * 5 + 2;
+    }
+    update() { 
+        this.x += this.vx; 
+        this.y += this.vy; 
+        this.life -= 0.025; 
+        this.vy += 0.2; // Gravity
+    }
+    draw() {
+        ctx.globalAlpha = this.life;
+        ctx.fillStyle = this.color;
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = this.color;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+    }
+}
+
+function selectSong(idx) {
+    currentSongIdx = idx;
+    document.querySelectorAll('.song-card').forEach((c, i) => {
+        c.classList.toggle('selected', i === idx);
+    });
+    document.getElementById('start-btn').classList.remove('hidden');
+}
+
+async function startGame() {
+    if (currentSongIdx === -1) return;
+    await Tone.start();
+    gameState = 'PLAYING';
+    document.getElementById('menu-overlay').classList.add('hidden');
+    gameStartTime = Date.now();
+    lastTime = performance.now();
+    
+    const song = SONGS[currentSongIdx];
+    Tone.Transport.bpm.value = song.bpm;
+    
+    // Procedural Music Construction
+    const musicLoop = new Tone.Loop(time => {
+        drum.triggerAttackRelease("C1", "8n", time);
+        if (Math.random() > 0.5) drum.triggerAttackRelease("C1", "16n", time + Tone.Time("8n").toSeconds());
+    }, "4n").start(0);
+
+    Tone.Transport.start();
+    requestAnimationFrame(gameLoop);
+}
+
+document.getElementById('start-btn').addEventListener('click', startGame);
+
+function handleHit(lane) {
+    const judgeY = height - 150;
+    const hitWindow = 80;
+    let targetNote = null;
+    let minDist = Infinity;
+
+    for (let note of notes) {
+        if (note.lane === lane && !note.hit) {
+            const dist = Math.abs(note.y - judgeY);
+            if (dist < hitWindow && dist < minDist) {
+                targetNote = note;
+                minDist = dist;
+            }
+        }
+    }
+
+    if (targetNote) {
+        targetNote.hit = true;
+        const d = Math.abs(targetNote.y - judgeY);
+        let rating = "GOOD";
+        let points = 200;
+        
+        if (d < 25) { rating = "PERFECT"; points = 1000; judgeEl.style.color = "var(--neon-cyan)"; }
+        else if (d < 50) { rating = "GREAT"; points = 600; judgeEl.style.color = "white"; }
+        else { judgeEl.style.color = "gray"; }
+
+        score += points;
+        combo++;
+        if (combo > maxCombo) maxCombo = combo;
+        updateJudgement(rating);
+        createExplosion(lane * laneWidth + laneWidth/2, height - 150, targetNote.color);
+        
+        const scale = ["C3", "Eb3", "F3", "G3", "Bb3", "C4", "Eb4"];
+        synth.triggerAttackRelease(scale[lane], "16n");
+    }
+}
+
+function handleMiss() {
+    combo = 0;
+    updateJudgement("MISS");
+    judgeEl.style.color = "#ff4444";
+    hitNoise.triggerAttackRelease("16n");
+}
+
+function updateJudgement(txt) {
+    judgeEl.textContent = txt;
+    comboEl.textContent = combo;
+    comboEl.classList.remove('opacity-0');
+    comboEl.style.transform = 'scale(1.4) skewX(-10deg)';
+    setTimeout(() => comboEl.style.transform = 'scale(1) skewX(-10deg)', 80);
+    scoreEl.textContent = score.toString().padStart(6, '0');
+}
+
+function createExplosion(x, y, color) {
+    for (let i = 0; i < 15; i++) particles.push(new Particle(x, y, color));
+}
+
+function gameLoop(timestamp) {
+    if (gameState !== 'PLAYING') return;
+
+    const dt = timestamp - lastTime;
+    lastTime = timestamp;
+    
+    const elapsed = (Date.now() - gameStartTime) / 1000;
+    const song = SONGS[currentSongIdx];
+    const progress = (elapsed / song.length) * 100;
+    progressBar.style.width = `${Math.min(progress, 100)}%`;
+
+    if (elapsed >= song.length) {
+        endGame();
+        return;
+    }
+
+    ctx.clearRect(0, 0, width, height);
+
+    // DRAW LANE BACKGROUND & PRESS FEEDBACK
+    const judgeY = height - 150;
+    for (let i = 0; i < LANE_COUNT; i++) {
+        // Key Press Beam (건반 누르는 느낌 표현)
+        if (activeLanes[i]) {
+            const gradient = ctx.createLinearGradient(0, height, 0, 0);
+            gradient.addColorStop(0, LANE_COLORS[i] + '66');
+            gradient.addColorStop(0.5, LANE_COLORS[i] + '22');
+            gradient.addColorStop(1, 'transparent');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(i * laneWidth, 0, laneWidth, height);
+        }
+
+        // Lane Borders
+        ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+        ctx.strokeRect(i * laneWidth, 0, laneWidth, height);
+    }
+
+    // DRAW JUDGE LINE
+    ctx.strokeStyle = 'rgba(0, 255, 255, 0.5)';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(0, judgeY);
+    ctx.lineTo(width, judgeY);
+    ctx.stroke();
+    
+    // Add glowing line effect
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = 'cyan';
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // SPAWNING NOTES
+    spawnTimer += dt;
+    const spawnInterval = (60000 / song.bpm) / (song.difficulty * 0.4);
+    if (spawnTimer > spawnInterval) {
+        notes.push(new Note(Math.floor(Math.random() * LANE_COUNT)));
+        spawnTimer = 0;
+    }
+
+    // UPDATE & DRAW NOTES
+    for (let i = notes.length - 1; i >= 0; i--) {
+        notes[i].update(dt, song.speed);
+        notes[i].draw();
+        if (notes[i].y > height || notes[i].hit) notes.splice(i, 1);
+    }
+
+    // UPDATE & DRAW PARTICLES
+    for (let i = particles.length - 1; i >= 0; i--) {
+        particles[i].update();
+        particles[i].draw();
+        if (particles[i].life <= 0) particles.splice(i, 1);
+    }
+
+    requestAnimationFrame(gameLoop);
+}
+
+function endGame() {
+    gameState = 'RESULT';
+    Tone.Transport.stop();
+    document.getElementById('result-overlay').classList.remove('hidden');
+    document.getElementById('final-score').textContent = score.toString().padStart(6, '0');
+    document.getElementById('max-combo-val').textContent = maxCombo;
+    document.getElementById('accuracy-val').textContent = Math.max(0, Math.floor((score / (songMaxPossibleScore())) * 100)) + "%";
+}
+
+function songMaxPossibleScore() {
+    // Simple mock estimation of max score based on song length and bpm
+    const song = SONGS[currentSongIdx];
+    return (song.length * (song.bpm / 60) * song.difficulty * 1000) * 0.6;
+}
+
+window.addEventListener('keydown', (e) => {
+    if (e.repeat) return;
+    const key = e.key.toLowerCase();
+    const idx = KEY_MAP.indexOf(key);
+    if (idx !== -1) {
+        activeLanes[idx] = true;
+        document.querySelector(`.key-cap[data-key="${key}"]`)?.classList.add('active');
+        if (gameState === 'PLAYING') handleHit(idx);
+    }
+});
+
+window.addEventListener('keyup', (e) => {
+    const key = e.key.toLowerCase();
+    const idx = KEY_MAP.indexOf(key);
+    if (idx !== -1) {
+        activeLanes[idx] = false;
+        document.querySelector(`.key-cap[data-key="${key}"]`)?.classList.remove('active');
+    }
+});
+
+// Initial Setup
+window.onload = resize;
+</script>
+</body>
+</html>
